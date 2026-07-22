@@ -26,7 +26,7 @@ def buildAndPushTag(Map args) {
 pipeline {
 	agent { label 'rocky-linux-worker' }
         environment {
-		IMAGE_NAME = 'warius67/flask-app'
+		IMAGE_NAME = 'warius67/flask-app-example-build'
 	}
 	stages {
         	stage('Checkout') {
