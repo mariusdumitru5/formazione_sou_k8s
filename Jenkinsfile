@@ -1,7 +1,7 @@
 def buildAndPushTag(Map args) {
     def defaults = [
-        registryUrl: 'https://registry-1.docker.io/v2/',
-	credentialsId: 'b05d2eff-9df6-4540-99d2-82913d680ccd',
+        registryUrl: 'https://docker.io',
+	credentialsId: 'docker-hub-token',
         dockerfileDir: "./",
         dockerfileName: "Dockerfile",
         buildArgs: "",
