@@ -24,7 +24,7 @@ def buildAndPushTag(Map args) {
 }
 
 pipeline {
-	agent any
+	agent { label 'rocky-linux-worker' }
         environment {
 		IMAGE_NAME = 'warius67/flask-app'
 	}
