@@ -1,7 +1,7 @@
 def buildAndPushTag(Map args) {
     def defaults = [
-        registryUrl: 'https://docker.io',
-	credentialsId: 'docker-hub-token',
+        registryUrl: '',
+        credentialsId: 'docker-hub-token',
         dockerfileDir: "./",
         dockerfileName: "Dockerfile",
         buildArgs: "",
@@ -24,26 +24,26 @@ def buildAndPushTag(Map args) {
 }
 
 pipeline {
-	agent { label 'rocky-linux-worker' }
-        environment {
-		IMAGE_NAME = 'warius67/flask-app-example-build'
-	}
-	stages {
-        	stage('Checkout') {
-            		steps {
-                		checkout scm // Lo esegui manualmente qui
-            		}
-        	}
-		stage('Build and Push docker image') {
-			steps {
-				script {
-					def pushedImage = buildAndPushTag (
-					image: "${IMAGE_NAME}",
-					buildTag: "${BUILD_NUMBER}"
-				)  
-
-				}
-			}
-		} 		
-	} 
+    agent { label 'rocky-linux-worker' }
+    environment {
+        IMAGE_NAME = 'warius67/flask-app-example-build'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        stage('Build and Push docker image') {
+            steps {
+                script {
+                    def pushedImage = buildAndPushTag(
+                        image: "${IMAGE_NAME}",
+                        buildTag: "${BUILD_NUMBER}"
+                    )  
+                }
+            }
+        } 		
+    }
 }
+
