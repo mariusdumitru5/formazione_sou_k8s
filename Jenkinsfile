@@ -62,7 +62,7 @@ pipeline {
                 script {
                     def pushedImage = buildAndPushTag(
                         image: "${env.IMAGE_NAME}",
-                        buildTag: "${env.DOCKER_TAG}"
+                        buildTag: "${env.DOCKER_TAG}",
                         pushLatest: "${env.PUSH_LATEST}"
                     ) 
                     echo "Successo! Immagine pushata: ${pushedImage}" 
