@@ -57,7 +57,7 @@ HTML_TEMPLATE = """
 
     <div class="container">
         <h1>Benvenuto in Flask!</h1>
-        <p>Wow, questo sito è davvero pazzesco</p>
+        <p>Wow, questo sito è davvero pazzesco!!!</p>
     </div>
 
     <canvas id="particleCanvas"></canvas>
