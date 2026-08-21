@@ -81,29 +81,27 @@ pipeline {
         stage('Helm Deploy sul Mac') {
             steps {
                 script {
-                    // Preleva il Token generato sul Mac dai segreti di Jenkins
                     withCredentials([string(credentialsId: "${env.K8S_TOKEN_ID}", variable: 'KUBETOKEN')]) {
-                        sh """
-                            # 1. Configura temporaneamente il kubectl del worker Rocky Linux per puntare al Mac
-                            kubectl config set-cluster minikube-mac --server=${env.K8S_API_URL} --insecure-skip-tls-verify=true
-                            kubectl config set-credentials jenkins-sa --token=${KUBETOKEN}
-                            kubectl config set-context mac-context --cluster=minikube-mac --user=jenkins-sa --namespace=${env.NAMESPACE}
-                            kubectl config use-context mac-context
+                        sh '''
+                           
+                            /usr/local/bin/kubectl config set-cluster minikube-mac --server=${K8S_API_URL} --insecure-skip-tls-verify=true
+                            /usr/local/bin/kubectl config set-credentials jenkins-sa --token=${KUBETOKEN}
+                            /usr/local/bin/kubectl config set-context mac-context --cluster=minikube-mac --user=jenkins-sa --namespace=${NAMESPACE}
+                            /usr/local/bin/kubectl config use-context mac-context
 
-                            # 2. Verifica la connessione di rete verso il cluster del Mac
+                           
                             echo "Verifico connessione a Minikube sul Mac..."
-                            kubectl cluster-info
+                            /usr/local/bin/kubectl cluster-info
 
-                            # 3. Esegui il deploy passando dinamicamente l'immagine appena caricata
-                            echo "Avvio Helm Upgrade/Install nel namespace ${env.NAMESPACE}..."
-                            helm upgrade --install ${env.RELEASE_NAME} ${env.CHART_PATH} \
-                                --namespace ${env.NAMESPACE} \
+                            echo "Avvio Helm Upgrade/Install nel namespace ${NAMESPACE}..."
+                            /usr/local/bin/helm upgrade --install ${RELEASE_NAME} ${CHART_PATH} \
+                                --namespace ${NAMESPACE} \
                                 --create-namespace \
                                 --kube-insecure-skip-tls-verify \
-                                --set image.repository=${env.IMAGE_NAME} \
-                                --set image.tag=${env.DOCKER_TAG} \
+                                --set image.repository=${IMAGE_NAME} \
+                                --set image.tag=${DOCKER_TAG} \
                                 --wait
-                        """
+                        '''
                     }
                 }
             }
