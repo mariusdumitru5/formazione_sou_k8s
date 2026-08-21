@@ -30,7 +30,7 @@ pipeline {
         
         // --- NUOVE VARIABILI PER IL CLUSTER SUL MAC ---
         K8S_TOKEN_ID = 'k8s-mac-token'
-        K8S_API_URL  = 'https://192.168.7.1:50877' 
+        K8S_API_URL = 'https://localhost:50877'
         NAMESPACE    = 'formazione-sou'
         RELEASE_NAME = 'flask-app'
         CHART_PATH   = 'charts/flask-app'
@@ -78,44 +78,51 @@ pipeline {
                 }
             }
         }
-        stage('Helm Deploy sul Mac') {
-            // Diciamo a Jenkins di far girare questo specifico stage dentro un container con Helm e Kubectl già pronti
+        stage('Helm Deploy via SSH Tunnel') {
             agent {
                 docker {
-                    image 'dtzar/helm-kubectl:latest'
-                    // Forziamo il container a usare la rete dell'host per raggiungere l'IP del tuo Mac
-                    args '-u root --network host'
+                    image 'alpine/helm:latest'
+                    args '-u root --network host --entrypoint=""'
                 }
             }
             steps {
                 script {
+                    // Assicurati di avere le credenziali SSH del tuo Mac salvate su Jenkins
                     withCredentials([string(credentialsId: "${env.K8S_TOKEN_ID}", variable: 'KUBETOKEN')]) {
-                        // All'interno di questo container i comandi si lanciano senza percorso assoluto
-                        sh """
-                            # 1. Configura temporaneamente il cluster puntando al tuo Mac
-                            kubectl config set-cluster minikube-mac --server=${env.K8S_API_URL} --insecure-skip-tls-verify=true
+                        sh '''
+                            # Installa il client SSH nel container se mancante
+                            apk add --no-cache openssh-client
+
+                            # Crea un tunnel SSH in background: mappa la porta del Mac sulla VM dell'agent
+                            # Sostituisci 'utente_mac' con il tuo nome utente del Mac
+                            ssh -o StrictHostKeyChecking=no -N -L 50877:127.0.0.1:50877 utente_mac@192.168.7.1 &
+                            TUNNEL_PID=$!
+                            sleep 2 # Attendi che il tunnel si stabilizzi
+
+                            # 1. Configura temporaneamente il cluster puntando a localhost (grazie al tunnel)
+                            kubectl config set-cluster minikube-mac --server=${K8S_API_URL} --insecure-skip-tls-verify=true
                             kubectl config set-credentials jenkins-sa --token=${KUBETOKEN}
-                            kubectl config set-context mac-context --cluster=minikube-mac --user=jenkins-sa --namespace=${env.NAMESPACE}
+                            kubectl config set-context mac-context --cluster=minikube-mac --user=jenkins-sa --namespace=${NAMESPACE}
                             kubectl config use-context mac-context
 
-                            # 2. Verifica la connessione di rete verso il cluster del Mac
-                            echo "Verifico connessione a Minikube sul Mac..."
+                            # 2. Verifica la connessione
                             kubectl cluster-info
 
                             # 3. Esegui il deploy con Helm
-                            echo "Avvio Helm Upgrade/Install nel namespace ${env.NAMESPACE}..."
-                            helm upgrade --install ${env.RELEASE_NAME} ${env.CHART_PATH} \
-                                --namespace ${env.NAMESPACE} \
+                            helm upgrade --install ${RELEASE_NAME} ${CHART_PATH} \
+                                --namespace ${NAMESPACE} \
                                 --create-namespace \
                                 --kube-insecure-skip-tls-verify \
-                                --set image.repository=${env.IMAGE_NAME} \
-                                --set image.tag=${env.DOCKER_TAG} \
+                                --set image.repository=${IMAGE_NAME} \
+                                --set image.tag=${DOCKER_TAG} \
                                 --wait
-                        """
+
+                            # Chiudi il tunnel SSH al termine
+                            kill $TUNNEL_PID
+                        '''
                     }
                 }
             }
         }
-
     }
 }
