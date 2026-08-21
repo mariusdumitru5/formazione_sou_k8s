@@ -24,13 +24,30 @@ def buildAndPushTag(Map args) {
 }
 
 pipeline {
-    agent { label 'rocky-linux-worker' }
+    agent {
+        kubernetes {
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                metadata:
+                  namespace: formazione-sou
+                spec:
+                  containers:
+                  - name: docker
+                    image: docker:24.0.7-dind
+                    command: ['cat']
+                    tty: true
+                    securityContext:
+                      privileged: true
+                  - name: helm-k8s
+                    image: bitnami/kubectl:latest
+                    command: ['cat']
+                    tty: true
+                '''
+        }
+    }
     environment {
         IMAGE_NAME   = 'warius67/flask-app-example-build'
-        
-        // --- NUOVE VARIABILI PER IL CLUSTER SUL MAC ---
-        K8S_TOKEN_ID = 'k8s-mac-token'
-        K8S_API_URL = 'https://localhost:50877'
         NAMESPACE    = 'formazione-sou'
         RELEASE_NAME = 'flask-app'
         CHART_PATH   = 'charts/flask-app'
@@ -64,63 +81,19 @@ pipeline {
                 }
             }
         }
-        stage('Build and Push docker image') {
+        stage('Helm Deploy') {
             steps {
-                script {
-                    // Nota: rimosse le virgolette intorno a env.PUSH_LATEST per passarlo come booleano nativo
-                    def pushLatestBool = env.PUSH_LATEST.toBoolean()
-                    def pushedImage = buildAndPushTag(
-                        image: "${env.IMAGE_NAME}",
-                        buildTag: "${env.DOCKER_TAG}",
-                        pushLatest: pushLatestBool
-                    ) 
-                    echo "Successo! Immagine pushata: ${pushedImage}" 
-                }
-            }
-        }
-        stage('Helm Deploy via SSH Tunnel') {
-            agent {
-                docker {
-                    image 'alpine/helm:latest'
-                    args '-u root --network host --entrypoint=""'
-                }
-            }
-            steps {
-                script {
-                    // Assicurati di avere le credenziali SSH del tuo Mac salvate su Jenkins
-                    withCredentials([string(credentialsId: "${env.K8S_TOKEN_ID}", variable: 'KUBETOKEN')]) {
-                        sh '''
-                            # Installa il client SSH nel container se mancante
-                            apk add --no-cache openssh-client
-
-                            # Crea un tunnel SSH in background: mappa la porta del Mac sulla VM dell'agent
-                            # Sostituisci 'utente_mac' con il tuo nome utente del Mac
-                            ssh -o StrictHostKeyChecking=no -N -L 50877:127.0.0.1:50877 utente_mac@192.168.7.1 &
-                            TUNNEL_PID=$!
-                            sleep 2 # Attendi che il tunnel si stabilizzi
-
-                            # 1. Configura temporaneamente il cluster puntando a localhost (grazie al tunnel)
-                            kubectl config set-cluster minikube-mac --server=${K8S_API_URL} --insecure-skip-tls-verify=true
-                            kubectl config set-credentials jenkins-sa --token=${KUBETOKEN}
-                            kubectl config set-context mac-context --cluster=minikube-mac --user=jenkins-sa --namespace=${NAMESPACE}
-                            kubectl config use-context mac-context
-
-                            # 2. Verifica la connessione
-                            kubectl cluster-info
-
-                            # 3. Esegui il deploy con Helm
-                            helm upgrade --install ${RELEASE_NAME} ${CHART_PATH} \
-                                --namespace ${NAMESPACE} \
-                                --create-namespace \
-                                --kube-insecure-skip-tls-verify \
-                                --set image.repository=${IMAGE_NAME} \
-                                --set image.tag=${DOCKER_TAG} \
-                                --wait
-
-                            # Chiudi il tunnel SSH al termine
-                            kill $TUNNEL_PID
-                        '''
-                    }
+                // Questo stage gira dentro il container 'helm-k8s' del Pod sul tuo Mac
+                container('helm-k8s') {
+                    sh """
+                        echo "Siamo già dentro il cluster del Mac! Eseguo il deploy diretto..."
+                        
+                        helm upgrade --install ${env.RELEASE_NAME} ${env.CHART_PATH} \
+                            --namespace ${env.NAMESPACE} \
+                            --set image.repository=${env.IMAGE_NAME} \
+                            --set image.tag=${env.DOCKER_TAG} \
+                            --wait
+                    """
                 }
             }
         }
