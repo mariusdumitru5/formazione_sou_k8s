@@ -82,7 +82,7 @@ pipeline {
             // Diciamo a Jenkins di far girare questo specifico stage dentro un container con Helm e Kubectl già pronti
             agent {
                 docker {
-                    image 'dtzar/helm-kubectl:3.15.1'
+                    image 'dtzar/helm-kubectl:latest'
                     // Forziamo il container a usare la rete dell'host per raggiungere l'IP del tuo Mac
                     args '-u root --network host'
                 }
