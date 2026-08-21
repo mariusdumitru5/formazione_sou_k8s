@@ -26,7 +26,14 @@ def buildAndPushTag(Map args) {
 pipeline {
     agent { label 'rocky-linux-worker' }
     environment {
-        IMAGE_NAME = 'warius67/flask-app-example-build'
+        IMAGE_NAME   = 'warius67/flask-app-example-build'
+        
+        // --- NUOVE VARIABILI PER IL CLUSTER SUL MAC ---
+        K8S_TOKEN_ID = 'k8s-mac-token'
+        K8S_API_URL  = 'https://192.168.2.111:50037' 
+        NAMESPACE    = 'formazione-sou'
+        RELEASE_NAME = 'flask-app'
+        CHART_PATH   = 'charts/flask-app'
     }
     stages {
         stage('Checkout') {
@@ -51,7 +58,7 @@ pipeline {
                         env.PUSH_LATEST = 'false'
                     }
                     else {
-                        env.DOCKER_TAG = 'build-${env.BUILD_NUMBER}'
+                        env.DOCKER_TAG = "build-${env.BUILD_NUMBER}"
                         env.PUSH_LATEST = 'false'
                     }
                 }
@@ -60,15 +67,46 @@ pipeline {
         stage('Build and Push docker image') {
             steps {
                 script {
+                    // Nota: rimosse le virgolette intorno a env.PUSH_LATEST per passarlo come booleano nativo
+                    def pushLatestBool = env.PUSH_LATEST.toBoolean()
                     def pushedImage = buildAndPushTag(
                         image: "${env.IMAGE_NAME}",
                         buildTag: "${env.DOCKER_TAG}",
-                        pushLatest: "${env.PUSH_LATEST}"
+                        pushLatest: pushLatestBool
                     ) 
                     echo "Successo! Immagine pushata: ${pushedImage}" 
                 }
             }
-        } 		
+        }
+        stage('Helm Deploy sul Mac') {
+            steps {
+                script {
+                    // Preleva il Token generato sul Mac dai segreti di Jenkins
+                    withCredentials([string(credentialsId: "${env.K8S_TOKEN_ID}", variable: 'KUBETOKEN')]) {
+                        sh """
+                            # 1. Configura temporaneamente il kubectl del worker Rocky Linux per puntare al Mac
+                            kubectl config set-cluster minikube-mac --server=${env.K8S_API_URL} --insecure-skip-tls-verify=true
+                            kubectl config set-credentials jenkins-sa --token=${KUBETOKEN}
+                            kubectl config set-context mac-context --cluster=minikube-mac --user=jenkins-sa --namespace=${env.NAMESPACE}
+                            kubectl config use-context mac-context
+
+                            # 2. Verifica la connessione di rete verso il cluster del Mac
+                            echo "Verifico connessione a Minikube sul Mac..."
+                            kubectl cluster-info
+
+                            # 3. Esegui il deploy passando dinamicamente l'immagine appena caricata
+                            echo "Avvio Helm Upgrade/Install nel namespace ${env.NAMESPACE}..."
+                            helm upgrade --install ${env.RELEASE_NAME} ${env.CHART_PATH} \
+                                --namespace ${env.NAMESPACE} \
+                                --create-namespace \
+                                --kube-insecure-skip-tls-verify \
+                                --set image.repository=${env.IMAGE_NAME} \
+                                --set image.tag=${env.DOCKER_TAG} \
+                                --wait
+                        """
+                    }
+                }
+            }
+        }
     }
 }
-
