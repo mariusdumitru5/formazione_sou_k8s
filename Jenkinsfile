@@ -30,7 +30,7 @@ pipeline {
         
         // --- NUOVE VARIABILI PER IL CLUSTER SUL MAC ---
         K8S_TOKEN_ID = 'k8s-mac-token'
-        K8S_API_URL  = 'https://192.168.2.111:50037' 
+        K8S_API_URL  = 'https://192.168.2.111:50665' 
         NAMESPACE    = 'formazione-sou'
         RELEASE_NAME = 'flask-app'
         CHART_PATH   = 'charts/flask-app'
