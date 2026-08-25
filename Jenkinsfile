@@ -8,7 +8,7 @@ pipeline {
         NAMESPACE      = 'formazione-sou'
         RELEASE_NAME   = 'flask-app'
         CHART_PATH     = 'charts/flask-app'
-        DOCKER_CREDS   = credentials('token-docker-hub') 
+        DOCKER_CREDS   = credentials('docker-hub-token') 
     }
     stages {
         stage('Checkout') {
