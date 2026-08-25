@@ -41,18 +41,13 @@ pipeline {
         }
         stage('Docker Build & Push') {
             steps {
-                // Esegue i comandi direttamente sulla macchina, usando il Docker reale
-                sh """
-                    echo "\$DOCKER_CREDS" | docker login -u "warius67" --password-stdin
-                    
-                    docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} -f Dockerfile .
-                    docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}
-                    
-                    if [ "${env.PUSH_LATEST}" = "true" ]; then
-                        docker tag ${env.IMAGE_NAME}:${env.DOCKER_TAG} ${env.IMAGE_NAME}:latest
-                        docker push ${env.IMAGE_NAME}:latest
-                    fi
-                """
+                script {
+                    docker.withRegistry('https://docker.io', 'docker-hub-token') {
+                    // Il login è già avvenuto con successo qui dentro
+                    def myImage = docker.build("warius67/mia-app:${env.BUILD_NUMBER}")
+                    myImage.push()
+                    }
+                }
             }
         }
         stage('Helm Deploy') {
