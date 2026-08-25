@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME      = 'warius67/flask-app-example-build'
         HELM_RELEASE    = 'flask-app'
         HELM_CHART_DIR  = './charts/flask-app'
-        KUBE_NAMESPACE  = 'default'
+        KUBE_NAMESPACE  = 'formazione-sou'
     }
     
     stages {
