@@ -6,23 +6,25 @@ pipeline {
                 kind: Pod
                 metadata:
                   namespace: formazione-sou
+                  labels:
+                    jenkins: agent
                 spec:
-                  # Associa il ServiceAccount con permessi di Cluster-Admin creato prima
+                  # Forza l'uso del ServiceAccount amministrativo che abbiamo creato
                   serviceAccountName: jenkins-agent-sa
                   containers:
-                  # Container 1: Il motore Docker (DinD) per fare Build e Push
+                  # CONTAINER 1: Il motore Docker (DinD) per fare Build e Push
                   - name: docker
                     image: docker:24.0.7-dind
-                    command: ['dockerd-entrypoint.sh'] # Avvia il demone Docker
+                    command: ['dockerd-entrypoint.sh'] # Avvia correttamente il demone Docker
                     tty: true
                     securityContext:
-                      privileged: true # Necessario per far girare Docker dentro un container
+                      privileged: true # FONDAMENTALE: Permette a Docker di girare dentro Kubernetes
                     volumeMounts:
                     - name: dind-storage
                       mountPath: /var/lib/docker
-                  # Container 2: Helm e Kubectl per fare il Deploy sul cluster del Mac
+                  # CONTAINER 2: Helm e Kubectl per fare il Deploy
                   - name: helm-k8s
-                    image: alpine/helm:3.12.3 # Contiene sia l'eseguibile 'helm' che 'kubectl'
+                    image: alpine/helm:3.12.3 # Contiene SIA helm SIA kubectl
                     command: ['cat']
                     tty: true
                   volumes:
@@ -36,13 +38,13 @@ pipeline {
         NAMESPACE      = 'formazione-sou'
         RELEASE_NAME   = 'flask-app'
         CHART_PATH     = 'charts/flask-app'
-        // Carica le credenziali salvate su Jenkins (es. come Secret Text o Username/Password)
+        // Carica il token di Docker Hub configurato nelle credenziali di Jenkins
         DOCKER_CREDS   = credentials('docker-hub-token') 
     }
     stages {
         stage('Checkout') {
             steps {
-                // Scarica il codice della tua repository Git
+                // Scarica il codice sorgente dalla tua repository Git
                 checkout scm
             }
         }
@@ -72,22 +74,22 @@ pipeline {
         }
         stage('Docker Build & Push') {
             steps {
-                // Entriamo dentro il primo container (quello con Docker)
+                // Entra dentro il container con il motore Docker
                 container('docker') {
                     sh """
-                        # Aspetta 5 secondi per dare il tempo al demone Docker di avviarsi sullo sfondo
+                        # Attende 5 secondi per garantire l'avvio completo del demone Docker
                         sleep 5
                         
-                        # Login su Docker Hub usando la variabile d'ambiente di Jenkins
+                        # Login su Docker Hub usando le credenziali d'ambiente caricate da Jenkins
                         echo "\$DOCKER_CREDS" | docker login -u "warius67" --password-stdin
                         
-                        # Fai la build dell'immagine leggendo il Dockerfile della repo
+                        # Compila l'immagine leggendo il Dockerfile della repository
                         docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} -f Dockerfile .
                         
-                        # Push dell'immagine su Docker Hub
+                        # Esegue il Push dell'immagine su Docker Hub
                         docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}
                         
-                        # Se siamo su main/master, pusha anche il tag 'latest'
+                        # Se richiesto dalla logica dei tag, applica e pusha anche il tag 'latest'
                         if [ "${env.PUSH_LATEST}" = "true" ]; then
                             docker tag ${env.IMAGE_NAME}:${env.DOCKER_TAG} ${env.IMAGE_NAME}:latest
                             docker push ${env.IMAGE_NAME}:latest
@@ -98,15 +100,15 @@ pipeline {
         }
         stage('Helm Deploy') {
             steps {
-                // Usciamo da Docker ed entriamo nel secondo container (quello con Helm)
+                // Cambia ambiente ed entra nel container con Helm e Kubectl
                 container('helm-k8s') {
                     sh """
-                        echo "Eseguo il deploy diretto nel cluster Kubernetes..."
+                        echo "Eseguo il deploy diretto nel cluster locale..."
                         
-                        # Sfrutta il ServiceAccount del Pod per autenticarsi automaticamente nel cluster del Mac
+                        # Verifica la connessione al cluster (eredita i permessi di cluster-admin del Pod)
                         kubectl cluster-info
                         
-                        # Esegue l'upgrade o l'installazione del tuo Chart Helm passando il nuovo tag dell'immagine
+                        # Esegue l'installazione o l'aggiornamento del tuo Chart Helm passando il nuovo tag
                         helm upgrade --install ${env.RELEASE_NAME} ${env.CHART_PATH} \
                             --namespace ${env.NAMESPACE} \
                             --set image.repository=${env.IMAGE_NAME} \
