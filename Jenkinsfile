@@ -81,7 +81,7 @@ pipeline {
                           --namespace ${env.KUBE_NAMESPACE} \
                           --set image.repository=${env.IMAGE_NAME} \
                           --set image.tag=${env.DOCKER_TAG} \
-                          --atomic \
+                          --rollback-on-failure\
                           --timeout 5m
                           
                         echo "Deployment completato con successo!"
