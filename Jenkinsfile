@@ -1,21 +1,48 @@
+def buildAndPushTag(Map args) {
+    def defaults = [
+        registryUrl: 'https://docker.io',
+        credentialsId: 'docker-hub-token',
+        dockerfileDir: "./",
+        dockerfileName: "Dockerfile",
+        buildArgs: "",
+        pushLatest: true
+    ]
+
+    args = defaults + args
+    def shouldPushLatest = args.pushLatest.toString().toLowerCase() == 'true'
+
+    docker.withRegistry(args.registryUrl, args.credentialsId) {
+        def image = docker.build(args.image, "${args.buildArgs} ${args.dockerfileDir} -f ${args.dockerfileName}")
+        
+        image.push(args.buildTag)
+        
+        if (shouldPushLatest && args.buildTag != "latest") {
+            image.push("latest")
+            sh "docker rmi --force ${args.image}:latest"
+        }
+        
+        sh "docker rmi --force ${args.image}:${args.buildTag}"
+        return "${args.image}:${args.buildTag}"
+    }
+}
+
 pipeline {
-    agent {
-        // Dice a Jenkins di non creare Pod, ma di usare l'agente fisico con questa label
-        label 'mac-agent'
-    }
+    agent { label 'Mac-cluster' }
+    
     environment {
-        IMAGE_NAME     = 'warius67/flask-app-example-build'
-        NAMESPACE      = 'formazione-sou'
-        RELEASE_NAME   = 'flask-app'
-        CHART_PATH     = 'charts/flask-app'
-        DOCKER_CREDS   = credentials('docker-hub-token') 
+        IMAGE_NAME      = 'warius67/flask-app'
+        HELM_RELEASE    = 'flask-app'
+        HELM_CHART_DIR  = '/helm/flask-app' 
+        KUBE_NAMESPACE  = 'formazione-sou'        
     }
+    
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
+        
         stage('Tag Logic') {
             steps {
                 script {
@@ -39,30 +66,38 @@ pipeline {
                 }
             }
         }
-        stage('Docker Build & Push') {
+        
+        stage('Build and Push docker image') {
             steps {
                 script {
-                    docker.withRegistry('https://docker.io', 'docker-hub-token') {
-                    // Il login è già avvenuto con successo qui dentro
-                    def myImage = docker.build("warius67/mia-app:${env.BUILD_NUMBER}")
-                    myImage.push()
-                    }
+                    def pushedImage = buildAndPushTag(
+                        image: "${env.IMAGE_NAME}",
+                        buildTag: "${env.DOCKER_TAG}",
+                        pushLatest: env.PUSH_LATEST
+                    ) 
+                    echo "Successo! Immagine pushata: ${pushedImage}" 
                 }
             }
         }
-        stage('Helm Deploy') {
+        
+        stage('Deploy to Kubernetes via Helm') {
             steps {
-                // Esegue il deploy usando helm e il contesto kubectl della macchina ospitante
-                sh """
-                    echo "Eseguo il deploy tramite l'Helm installato sulla macchina..."
-                    
-                    helm upgrade --install ${env.RELEASE_NAME} ${env.CHART_PATH} \
-                        --namespace ${env.NAMESPACE} \
-                        --set image.repository=${env.IMAGE_NAME} \
-                        --set image.tag=${env.DOCKER_TAG} \
-                        --create-namespace \
-                        --wait
-                """
+                // Utilizziamo un file segreto per memorizzare il Kubeconfig (vedi istruzioni sotto)
+                withCredentials([file(credentialsId: 'kubernetes-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh """
+                        echo "Inizio deployment con Helm..."
+                        
+                        # Esegue l'upgrade o l'installazione se non esiste, passando il nuovo tag dell'immagine appena compilata
+                        helm upgrade --install ${env.HELM_RELEASE} ${env.HELM_CHART_DIR} \
+                          --namespace ${env.KUBE_NAMESPACE} \
+                          --set image.repository=${env.IMAGE_NAME} \
+                          --set image.tag=${env.DOCKER_TAG} \
+                          --atomic \
+                          --timeout 5m
+                          
+                        echo "Deployment completato con successo!"
+                    """
+                }
             }
         }
     }
