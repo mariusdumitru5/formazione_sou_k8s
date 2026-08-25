@@ -1,39 +1,11 @@
-def buildAndPushTag(Map args) {
-    def defaults = [
-        registryUrl: 'https://docker.io',
-        credentialsId: 'docker-hub-token',
-        dockerfileDir: "./",
-        dockerfileName: "Dockerfile",
-        buildArgs: "",
-        pushLatest: true
-    ]
-
-    args = defaults + args
-    def shouldPushLatest = args.pushLatest.toString().toLowerCase() == 'true'
-
-    docker.withRegistry(args.registryUrl, args.credentialsId) {
-        def image = docker.build(args.image, "${args.buildArgs} ${args.dockerfileDir} -f ${args.dockerfileName}")
-        
-        image.push(args.buildTag)
-        
-        if (shouldPushLatest && args.buildTag != "latest") {
-            image.push("latest")
-            sh "docker rmi --force ${args.image}:latest"
-        }
-        
-        sh "docker rmi --force ${args.image}:${args.buildTag}"
-        return "${args.image}:${args.buildTag}"
-    }
-}
-
 pipeline {
     agent { label 'Mac-cluster' }
     
     environment {
-        IMAGE_NAME      = 'warius67/flask-app'
+        IMAGE_NAME      = 'warius67/flask-app-example-build'
         HELM_RELEASE    = 'flask-app'
-        HELM_CHART_DIR  = '/helm/flask-app' 
-        KUBE_NAMESPACE  = 'formazione-sou'        
+        HELM_CHART_DIR  = './charts/flask-app'
+        KUBE_NAMESPACE  = 'default'
     }
     
     stages {
@@ -70,24 +42,41 @@ pipeline {
         stage('Build and Push docker image') {
             steps {
                 script {
-                    def pushedImage = buildAndPushTag(
-                        image: "${env.IMAGE_NAME}",
-                        buildTag: "${env.DOCKER_TAG}",
-                        pushLatest: env.PUSH_LATEST
-                    ) 
-                    echo "Successo! Immagine pushata: ${pushedImage}" 
+                    // Utilizza le credenziali di Jenkins tramite variabili d'ambiente fornite alla shell
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-token', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_TOKEN')]) {
+                        sh """
+                            echo "Eseguo il login su Docker Hub..."
+                            echo "\$DOCKER_TOKEN" | docker login -u "\$DOCKER_USER" --password-stdin
+                            
+                            echo "Avvio la compilazione dell'immagine..."
+                            docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} . -f Dockerfile
+                            
+                            echo "Eseguo il push dell'immagine..."
+                            docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}
+                        """
+                        
+                        if (env.PUSH_LATEST == 'true' && env.DOCKER_TAG != 'latest') {
+                            sh """
+                                docker tag ${env.IMAGE_NAME}:${env.DOCKER_TAG} ${env.IMAGE_NAME}:latest
+                                docker push ${env.IMAGE_NAME}:latest
+                                docker rmi --force ${env.IMAGE_NAME}:latest
+                            """
+                        }
+                        
+                        // Pulizia finale delle immagini locali per non riempire il Mac
+                        sh "docker rmi --force ${env.IMAGE_NAME}:${env.DOCKER_TAG}"
+                    }
                 }
             }
         }
         
         stage('Deploy to Kubernetes via Helm') {
             steps {
-                // Utilizziamo un file segreto per memorizzare il Kubeconfig (vedi istruzioni sotto)
+                // Utilizza il file Kubeconfig configurato su Jenkins
                 withCredentials([file(credentialsId: 'kubernetes-kubeconfig', variable: 'KUBECONFIG')]) {
                     sh """
-                        echo "Inizio deployment con Helm..."
+                        echo "Inizio il deployment su Kubernetes tramite Helm..."
                         
-                        # Esegue l'upgrade o l'installazione se non esiste, passando il nuovo tag dell'immagine appena compilata
                         helm upgrade --install ${env.HELM_RELEASE} ${env.HELM_CHART_DIR} \
                           --namespace ${env.KUBE_NAMESPACE} \
                           --set image.repository=${env.IMAGE_NAME} \
