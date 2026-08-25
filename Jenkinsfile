@@ -42,14 +42,14 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                # Scarica il codice della tua repository Git
+                // Scarica il codice della tua repository Git
                 checkout scm
             }
         }
         stage('Tag Logic') {
             steps {
                 script {
-                    # Calcola il tag dell'immagine in base al branch o al tag Git
+                    // Calcola il tag dell'immagine in base al branch o al tag Git
                     if (env.TAG_NAME) {
                         env.DOCKER_TAG = env.TAG_NAME
                         env.PUSH_LATEST = 'false'
@@ -72,7 +72,7 @@ pipeline {
         }
         stage('Docker Build & Push') {
             steps {
-                # Entriamo dentro il primo container (quello con Docker)
+                // Entriamo dentro il primo container (quello con Docker)
                 container('docker') {
                     sh """
                         # Aspetta 5 secondi per dare il tempo al demone Docker di avviarsi sullo sfondo
@@ -98,7 +98,7 @@ pipeline {
         }
         stage('Helm Deploy') {
             steps {
-                # Usciamo da Docker ed entriamo nel secondo container (quello con Helm)
+                // Usciamo da Docker ed entriamo nel secondo container (quello con Helm)
                 container('helm-k8s') {
                     sh """
                         echo "Eseguo il deploy diretto nel cluster Kubernetes..."
