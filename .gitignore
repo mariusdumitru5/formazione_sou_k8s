@@ -1,0 +1,9 @@
+# Ignora il database SQLite e la cartella instance
+instance/
+*.db
+*.sqlite3
+
+# Ignora ambienti virtuali Python
+venv/
+.venv/
+__pycache__/

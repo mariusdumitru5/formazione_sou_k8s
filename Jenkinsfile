@@ -2,9 +2,9 @@ pipeline {
     agent { label 'Mac-cluster' }
     
     environment {
-        IMAGE_NAME      = 'warius67/flask-app-example-build'
-        HELM_RELEASE    = 'flask-app'
-        HELM_CHART_DIR  = './charts/flask-app'
+        IMAGE_NAME      = 'warius67/app_note'
+        HELM_RELEASE    = 'app_note'
+        HELM_CHART_DIR  = './charts/app_note'
         KUBE_NAMESPACE  = 'formazione-sou'
     }
     
@@ -22,13 +22,9 @@ pipeline {
                         env.DOCKER_TAG = env.TAG_NAME
                         env.PUSH_LATEST = 'false'
                     }
-                    else if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') {
-                        env.DOCKER_TAG = 'latest'
-                        env.PUSH_LATEST = 'true'
-                    }
-                    else if (env.BRANCH_NAME == 'develop') {
+                    else if (env.BRANCH_NAME == 'app_note') {
                         def gitCommitSha = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                        env.DOCKER_TAG = "develop-${gitCommitSha}"
+                        env.DOCKER_TAG = "app-note-${gitCommitSha}"
                         env.PUSH_LATEST = 'false'
                     }
                     else {
@@ -49,7 +45,7 @@ pipeline {
                             echo "\$DOCKER_TOKEN" | docker login -u "\$DOCKER_USER" --password-stdin
                             
                             echo "Avvio la compilazione dell'immagine..."
-                            docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} . -f Dockerfile
+                            docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} . -f app_note/Dockerfile
                             
                             echo "Eseguo il push dell'immagine..."
                             docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}
@@ -70,24 +66,24 @@ pipeline {
             }
         }
         
-        stage('Deploy to Kubernetes via Helm') {
-            steps {
-                // Utilizza il file Kubeconfig configurato su Jenkins
-                withCredentials([file(credentialsId: 'kubernetes-kubeconfig', variable: 'KUBECONFIG')]) {
-                    sh """
-                        echo "Inizio il deployment su Kubernetes tramite Helm..."
+        // stage('Deploy to Kubernetes via Helm') {
+        //     steps {
+        //         // Utilizza il file Kubeconfig configurato su Jenkins
+        //         withCredentials([file(credentialsId: 'kubernetes-kubeconfig', variable: 'KUBECONFIG')]) {
+        //             sh """
+        //                 echo "Inizio il deployment su Kubernetes tramite Helm..."
                         
-                        helm upgrade --install ${env.HELM_RELEASE} ${env.HELM_CHART_DIR} \
-                          --namespace ${env.KUBE_NAMESPACE} \
-                          --set image.repository=${env.IMAGE_NAME} \
-                          --set image.tag=${env.DOCKER_TAG} \
-                          --rollback-on-failure\
-                          --timeout 5m
+        //                 helm upgrade --install ${env.HELM_RELEASE} ${env.HELM_CHART_DIR} \
+        //                   --namespace ${env.KUBE_NAMESPACE} \
+        //                   --set image.repository=${env.IMAGE_NAME} \
+        //                   --set image.tag=${env.DOCKER_TAG} \
+        //                   --rollback-on-failure\
+        //                   --timeout 5m
                           
-                        echo "Deployment completato con successo!"
-                    """
-                }
-            }
-        }
+        //                 echo "Deployment completato con successo!"
+        //             """
+        //         }
+        //     }
+        // }
     }
 }
