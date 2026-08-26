@@ -15,8 +15,7 @@ spec:
         app: {{ .Values.labels.app }}
     spec:
       containers: 
-      - name: flask-container 
+      - name: app-note-container 
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        # imagePullPolicy: Never 
         ports:
         - containerPort: 5000

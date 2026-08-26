@@ -66,24 +66,24 @@ pipeline {
             }
         }
         
-        // stage('Deploy to Kubernetes via Helm') {
-        //     steps {
-        //         // Utilizza il file Kubeconfig configurato su Jenkins
-        //         withCredentials([file(credentialsId: 'kubernetes-kubeconfig', variable: 'KUBECONFIG')]) {
-        //             sh """
-        //                 echo "Inizio il deployment su Kubernetes tramite Helm..."
+        stage('Deploy to Kubernetes via Helm') {
+            steps {
+                // Utilizza il file Kubeconfig configurato su Jenkins
+                withCredentials([file(credentialsId: 'kubernetes-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh """
+                        echo "Inizio il deployment su Kubernetes tramite Helm..."
                         
-        //                 helm upgrade --install ${env.HELM_RELEASE} ${env.HELM_CHART_DIR} \
-        //                   --namespace ${env.KUBE_NAMESPACE} \
-        //                   --set image.repository=${env.IMAGE_NAME} \
-        //                   --set image.tag=${env.DOCKER_TAG} \
-        //                   --rollback-on-failure\
-        //                   --timeout 5m
+                        helm upgrade --install ${env.HELM_RELEASE} ${env.HELM_CHART_DIR} \
+                          --namespace ${env.KUBE_NAMESPACE} \
+                          --set image.repository=${env.IMAGE_NAME} \
+                          --set image.tag=${env.DOCKER_TAG} \
+                          --rollback-on-failure\
+                          --timeout 5m
                           
-        //                 echo "Deployment completato con successo!"
-        //             """
-        //         }
-        //     }
-        // }
+                        echo "Deployment completato con successo!"
+                    """
+                }
+            }
+        }
     }
 }

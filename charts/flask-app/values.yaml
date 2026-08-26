@@ -1,8 +1,0 @@
-appname: flask-deployment
-
-labels:
-  app: "flask-app"
-
-image:
-  repository: warius67/flask-app-example-build
-  tag: "latest"

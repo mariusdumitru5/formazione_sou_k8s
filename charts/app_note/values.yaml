@@ -1,0 +1,8 @@
+appname: app-note-deployment
+
+labels:
+  app: "app-note"
+
+image:
+  repository: warius67/app_note
+  tag: "latest"

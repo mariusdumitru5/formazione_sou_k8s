@@ -1,19 +1,17 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: flask-ingress
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+  name: app-note-ingress
 spec:
   ingressClassName: nginx
   rules:
-  - host: flask.local 
+  - host:  http://formazionesou.local 
     http:
       paths:
       - path: / 
         pathType: Prefix 
         backend: 
           service:
-            name: flask-service 
+            name: app-note-service 
             port: 
               number: 80
