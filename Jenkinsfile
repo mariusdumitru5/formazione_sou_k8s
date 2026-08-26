@@ -45,7 +45,7 @@ pipeline {
                             echo "\$DOCKER_TOKEN" | docker login -u "\$DOCKER_USER" --password-stdin
                             
                             echo "Avvio la compilazione dell'immagine..."
-                            docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} . -f app_note/Dockerfile
+                            docker build -t ${env.IMAGE_NAME}:${env.DOCKER_TAG} -f app_note/Dockerfile app_note
                             
                             echo "Eseguo il push dell'immagine..."
                             docker push ${env.IMAGE_NAME}:${env.DOCKER_TAG}
