@@ -3,7 +3,7 @@ pipeline {
     
     environment {
         IMAGE_NAME      = 'warius67/app_note'
-        HELM_RELEASE    = 'app_note'
+        HELM_RELEASE    = 'app-note'
         HELM_CHART_DIR  = './charts/app_note'
         KUBE_NAMESPACE  = 'formazione-sou'
     }
